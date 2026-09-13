@@ -1,0 +1,6 @@
+{
+  "photos_dir": "C:/CHANGE/ME/to/your/photos/folder",
+  "db_path": "catalog.db",
+  "thumbnail_cache_dir": "cache/thumbnails",
+  "thumbnail_size": 512
+}

@@ -1,0 +1,5 @@
+rawpy
+Pillow
+exifread
+fastapi
+uvicorn

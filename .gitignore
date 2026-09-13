@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+catalog.db
+cache/
+server.log
+config.json
