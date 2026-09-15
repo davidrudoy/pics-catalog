@@ -1,13 +1,16 @@
 """
-Step 1: walk the photos directory, find RAW/JPEG files, and record each one
-in the DB (path, size, mtime, hash). Re-running only touches new or
-changed files — unchanged files are skipped by comparing mtime+size.
+Step 1: walk a photos directory (a "root"), find RAW/JPEG files, and record
+each one in the DB (path, size, mtime, hash), tagged with which root it came
+from. Re-running only touches new or changed files — unchanged files are
+skipped by comparing mtime+size.
 """
 import hashlib
+import sys
 import time
+from pathlib import Path
 
 from config import PHOTOS_DIR, SUPPORTED_EXTENSIONS
-from db import get_connection, init_db
+from db import get_connection, get_or_create_root, init_db
 from metadata import extract_exif
 
 
@@ -19,22 +22,25 @@ def hash_file(path, chunk_size=1024 * 1024) -> str:
     return sha256.hexdigest()
 
 
-def find_photo_files():
-    for path in PHOTOS_DIR.rglob("*"):
+def find_photo_files(root: Path):
+    for path in root.rglob("*"):
         if path.is_file() and path.suffix.lower() in SUPPORTED_EXTENSIONS:
             yield path
 
 
-def scan():
+def scan(root: Path):
+    root = Path(root)
     init_db()
     conn = get_connection()
+    root_id = get_or_create_root(conn, str(root))
+
     existing = {
         row["path"]: (row["mtime"], row["file_size"])
         for row in conn.execute("SELECT path, mtime, file_size FROM photos")
     }
 
     new_count = updated_count = skipped_count = 0
-    for path in find_photo_files():
+    for path in find_photo_files(root):
         path_str = str(path)
         stat = path.stat()
         mtime, size = stat.st_mtime, stat.st_size
@@ -55,19 +61,19 @@ def scan():
         if prev is None:
             conn.execute(
                 "INSERT INTO photos "
-                "(path, extension, file_size, mtime, file_hash, "
+                "(path, root_id, extension, file_size, mtime, file_hash, "
                 "date_taken, camera_make, camera_model, lens, "
                 "exposure_time, aperture, iso, focal_length) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                (path_str, path.suffix.lower(), size, mtime, file_hash, *exif_values),
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (path_str, root_id, path.suffix.lower(), size, mtime, file_hash, *exif_values),
             )
             new_count += 1
         else:
             conn.execute(
-                "UPDATE photos SET file_size=?, mtime=?, file_hash=?, "
+                "UPDATE photos SET root_id=?, file_size=?, mtime=?, file_hash=?, "
                 "date_taken=?, camera_make=?, camera_model=?, lens=?, "
                 "exposure_time=?, aperture=?, iso=?, focal_length=? WHERE path=?",
-                (size, mtime, file_hash, *exif_values, path_str),
+                (root_id, size, mtime, file_hash, *exif_values, path_str),
             )
             updated_count += 1
 
@@ -77,8 +83,9 @@ def scan():
 
 
 if __name__ == "__main__":
+    target = Path(sys.argv[1]) if len(sys.argv) > 1 else PHOTOS_DIR
     start = time.time()
-    new_count, updated_count, skipped_count = scan()
+    new_count, updated_count, skipped_count = scan(target)
     elapsed = time.time() - start
     print(
         f"Scan done in {elapsed:.1f}s — new: {new_count}, updated: {updated_count}, "

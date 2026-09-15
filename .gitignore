@@ -3,4 +3,5 @@ __pycache__/
 catalog.db
 cache/
 server.log
+desktop.log
 config.json

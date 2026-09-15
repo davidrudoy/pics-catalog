@@ -8,22 +8,45 @@ archive, meant to sit alongside Lightroom, not replace its develop engine.
   not a full render — this is what keeps browsing thousands of files fast.
 - Ratings/tags are meant to be written to XMP sidecar files, never into the
   original RAW/JPEG.
+- Browse and catalog multiple folders ("roots") — add any folder from any
+  drive via a native folder picker, switch between them from the sidebar.
 - Single local user, no accounts, no cloud/sync.
 
 ## Setup
 
 ```
 pip install -r requirements.txt
-cp config.example.json config.json   # then edit photos_dir
-python scan.py                        # step 1+2: walk folder, hash, EXIF
-python thumbnails.py                  # step 3: generate thumbnails
-python -m uvicorn app:app --reload    # step 4+5: browse at http://127.0.0.1:8000
+python desktop.py   # opens as a native desktop window (recommended)
 ```
 
-Re-running `scan.py` only processes new/changed files (by mtime+size).
+or as a plain local website:
+
+```
+python -m uvicorn app:app --reload   # browse at http://127.0.0.1:8000
+```
+
+Either way, the DB and thumbnail cache are created automatically on first
+run. Click "+ הוסף תיקייה" in the sidebar to catalog a folder — no config
+file editing required. (`config.json` / `config.example.json` still exist
+for scripted/CLI scanning via `python scan.py <folder>`.)
+
+Re-scanning a folder only processes new/changed files (by mtime+size).
+
+### Desktop shortcut
+
+A Windows desktop shortcut ("Photo Catalog") launches `desktop.py` with
+`pythonw.exe` (no console window). To recreate it or make your own:
+
+```
+python make_icon.py   # regenerates assets/icon.ico
+```
+
+then create a `.lnk` pointing at `pythonw.exe "<repo>\desktop.py"` with that
+icon (e.g. via PowerShell's `WScript.Shell` COM object).
 
 ## Status
 
 Level 1 (catalog only) — steps 0–5 done: scan, EXIF, thumbnails, browsing
-grid with date/rating/camera filters. Step 6 (rating/tagging from the UI,
-written to XMP sidecars) is next.
+grid with date/rating/camera filters, multi-root folder browsing, desktop
+app shell. Step 6 (rating/tagging from the UI, written to XMP sidecars) is
+next.

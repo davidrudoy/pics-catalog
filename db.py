@@ -6,9 +6,15 @@ import sqlite3
 from config import DB_PATH
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS roots (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    path            TEXT UNIQUE NOT NULL,
+    added_at        TEXT NOT NULL DEFAULT (datetime('now'))
+);
 CREATE TABLE IF NOT EXISTS photos (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     path            TEXT UNIQUE NOT NULL,
+    root_id         INTEGER REFERENCES roots(id),
     extension       TEXT NOT NULL,
     file_size       INTEGER NOT NULL,
     mtime           REAL NOT NULL,      -- file's last-modified time; used to skip unchanged files on rescan
@@ -29,6 +35,7 @@ CREATE TABLE IF NOT EXISTS photos (
 CREATE INDEX IF NOT EXISTS idx_photos_date_taken ON photos(date_taken);
 CREATE INDEX IF NOT EXISTS idx_photos_rating ON photos(rating);
 CREATE INDEX IF NOT EXISTS idx_photos_file_hash ON photos(file_hash);
+CREATE INDEX IF NOT EXISTS idx_photos_root_id ON photos(root_id);
 """
 
 
@@ -43,9 +50,22 @@ def init_db() -> None:
     conn = get_connection()
     try:
         conn.executescript(SCHEMA)
+        try:
+            # ponytail: cheap migration for DBs created before root_id existed.
+            conn.execute("ALTER TABLE photos ADD COLUMN root_id INTEGER REFERENCES roots(id)")
+        except sqlite3.OperationalError:
+            pass  # column already there
         conn.commit()
     finally:
         conn.close()
+
+
+def get_or_create_root(conn: sqlite3.Connection, path_str: str) -> int:
+    row = conn.execute("SELECT id FROM roots WHERE path = ?", (path_str,)).fetchone()
+    if row:
+        return row["id"]
+    cursor = conn.execute("INSERT INTO roots (path) VALUES (?)", (path_str,))
+    return cursor.lastrowid
 
 
 if __name__ == "__main__":

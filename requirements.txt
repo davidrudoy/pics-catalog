@@ -3,3 +3,4 @@ Pillow
 exifread
 fastapi
 uvicorn
+pywebview
